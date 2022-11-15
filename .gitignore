@@ -93,4 +93,5 @@ vendor/luajit/src/luajit
 
 cmake-build-debug-visual-studio
 cmake-build-debug
+cmake-build-release
 .idea
