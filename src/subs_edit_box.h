@@ -91,7 +91,7 @@ class SubsEditBox final : public wxPanel {
 	TimeEdit *end_time;
 	TimeEdit *duration;
 	wxSpinCtrl *layer;
-	std::array<wxTextCtrl *, 3> margin;
+	std::array<wxTextCtrl *, 3> margin{};
 	Placeholder<wxComboBox> *effect_box;
 	wxRadioButton *by_time;
 	wxRadioButton *by_frame;
@@ -110,7 +110,7 @@ class SubsEditBox final : public wxPanel {
 	/// @brief Commits the current edit box contents
 	/// @param desc Undo description to use
 	void CommitText(wxString const& desc);
-	void Commit(wxString const& desc, int type, bool amend, AssDialogue *line);
+	void Commit(wxString const& desc, int type, bool amend, AssDialogue *assDialogue);
 
 	/// Last commit ID for undo coalescing
 	int commit_id = -1;
@@ -119,7 +119,7 @@ class SubsEditBox final : public wxPanel {
 	wxString last_commit_type;
 
 	/// Last field to get a time commit, as they all have the same commit message
-	int last_time_commit_type;
+	int last_time_commit_type{};
 
 	/// Timer to stop coalescing changes after a break with no edits
 	wxTimer undo_timer;
@@ -156,8 +156,6 @@ class SubsEditBox final : public wxPanel {
 	void OnSize(wxSizeEvent &event);
 	void OnSplit(wxCommandEvent&);
 	void DoOnSplit(bool show_original);
-
-	void SetPlaceholderCtrl(wxControl *ctrl, wxString const& value);
 
 	/// @brief Set a field in each selected line to a specified value
 	/// @param set   Callable which updates a passed line
@@ -210,5 +208,5 @@ public:
 	/// @brief Constructor
 	/// @param parent Parent window
 	SubsEditBox(wxWindow *parent, agi::Context *context);
-	~SubsEditBox();
+	~SubsEditBox() override;
 };
