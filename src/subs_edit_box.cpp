@@ -209,9 +209,9 @@ SubsEditBox::SubsEditBox(wxWindow *parent, agi::Context *context)
     by_frame = MakeRadio(_("F&rame"), false, _("Time by frame number"));
     by_frame->Enable(false);
 
-    split_box = new wxCheckBox(this, -1, _("Show Original"));
+    split_box = new wxCheckBox(this, -1, _("Analyzing subtitles in the Zhi Meng Subtitle Group format"));
     split_box->SetToolTip(
-            _("Show the contents of the subtitle line when it was first selected above the edit box. This is sometimes useful when editing subtitles or translating subtitles into another language."));
+            _("Parse the subtitles in the \"Chinese\\NJapanese\" format, with Japanese on top and Chinese on the bottom. Both parts are editable, and any changes will be synchronized in real time."));
     split_box->Bind(wxEVT_CHECKBOX, &SubsEditBox::OnSplit, this);
     middle_right_sizer->Add(split_box, wxSizerFlags().Expand());
 
@@ -226,27 +226,25 @@ SubsEditBox::SubsEditBox(wxWindow *parent, agi::Context *context)
     if (use_stc) {
         edit_ctrl_stc = new SubsStyledTextEditCtrl(this, wxDefaultSize, wxBORDER_SUNKEN, c);
         edit_ctrl_stc->Bind(wxEVT_CHAR_HOOK, &SubsEditBox::OnKeyDown, this);
-    } else {
+    } else
 #endif
+    {
         edit_ctrl_tc = new SubsTextEditCtrl(this, wxDefaultSize, wxBORDER_SUNKEN, c);
         edit_ctrl_tc->Bind(wxEVT_CHAR_HOOK, &SubsEditBox::OnKeyDown, this);
-#ifdef WITH_WXSTC
     }
-#endif
-
-    secondary_editor = new SubsTextEditCtrl(this, wxDefaultSize, wxBORDER_SUNKEN | wxTE_MULTILINE | wxTE_READONLY,
-                                            nullptr);
+    InitStyledSubSizer();
 #ifdef WITH_WXSTC
     if (use_stc) {
         // Here we use the height of secondary_editor as the initial size of edit_ctrl_stc,
         // which is more reasonable than the default given by wxWidgets.
         // See: https://trac.wxwidgets.org/ticket/18471#ticket
         //      https://github.com/wangqr/Aegisub/issues/4
-        edit_ctrl_stc->SetInitialSize(secondary_editor->GetSize());
+        edit_ctrl_stc->SetInitialSize(sub_sizer->GetSize());
     }
 #endif
 
-    main_sizer->Add(secondary_editor, wxSizerFlags(1).Expand().Border(wxLEFT | wxRIGHT | wxBOTTOM, 3));
+    main_sizer->Add(sub_sizer, wxSizerFlags(1).Expand().Border(wxLEFT | wxRIGHT | wxBOTTOM, 3));
+    main_sizer->Hide(sub_sizer);
 #ifdef WITH_WXSTC
     if (use_stc) {
         main_sizer->Add(edit_ctrl_stc, wxSizerFlags(1).Expand().Border(wxLEFT | wxRIGHT | wxBOTTOM, 3));
@@ -256,13 +254,15 @@ SubsEditBox::SubsEditBox(wxWindow *parent, agi::Context *context)
 #ifdef WITH_WXSTC
     }
 #endif
-    main_sizer->Hide(secondary_editor);
 
     bottom_sizer = new wxBoxSizer(wxHORIZONTAL);
     bottom_sizer->Add(MakeBottomButton("edit/revert"), wxSizerFlags().Border(wxRIGHT));
     bottom_sizer->Add(MakeBottomButton("edit/clear"), wxSizerFlags().Border(wxRIGHT));
     bottom_sizer->Add(MakeBottomButton("edit/clear/text"), wxSizerFlags().Border(wxRIGHT));
-    bottom_sizer->Add(MakeBottomButton("edit/insert_original"));
+    auto insert_original_btm = MakeBottomButton("edit/insert_original");
+    bottom_sizer->Add(insert_original_btm);
+    // temporarily hide to reserve for future use.
+    bottom_sizer->Hide(insert_original_btm);
     main_sizer->Add(bottom_sizer);
     main_sizer->Hide(bottom_sizer);
 
@@ -272,13 +272,17 @@ SubsEditBox::SubsEditBox(wxWindow *parent, agi::Context *context)
     if (use_stc) {
         edit_ctrl_stc->Bind(wxEVT_STC_MODIFIED, &SubsEditBox::OnChangeStc, this);
         edit_ctrl_stc->SetModEventMask(wxSTC_MOD_INSERTTEXT | wxSTC_MOD_DELETETEXT | wxSTC_STARTACTION);
-    } else {
+        primary_editor_stc->Bind(wxEVT_STC_MODIFIED, &SubsEditBox::OnChangeSubStc, this);
+        primary_editor_stc->SetModEventMask(wxSTC_MOD_INSERTTEXT | wxSTC_MOD_DELETETEXT | wxSTC_STARTACTION);
+        secondary_editor_stc->Bind(wxEVT_STC_MODIFIED, &SubsEditBox::OnChangeSubStc, this);
+        secondary_editor_stc->SetModEventMask(wxSTC_MOD_INSERTTEXT | wxSTC_MOD_DELETETEXT | wxSTC_STARTACTION);
+    } else
 #endif
+    {
         edit_ctrl_tc->Bind(wxEVT_TEXT, &SubsEditBox::OnChangeTc, this);
-#ifdef WITH_WXSTC
+        primary_editor_tc->Bind(wxEVT_STC_MODIFIED, &SubsEditBox::OnChangeSubTc, this);
+        secondary_editor_tc->Bind(wxEVT_STC_MODIFIED, &SubsEditBox::OnChangeSubTc, this);
     }
-#endif
-
     Bind(wxEVT_TEXT, &SubsEditBox::OnLayerEnter, this, layer->GetId());
     Bind(wxEVT_SPINCTRL, &SubsEditBox::OnLayerEnter, this, layer->GetId());
     Bind(wxEVT_CHECKBOX, &SubsEditBox::OnCommentChange, this, comment_box->GetId());
@@ -387,7 +391,7 @@ SubsEditBox::MakeComboBox(wxString const &initial_text, int style, void (SubsEdi
                           wxString const &tooltip) {
     wxString styles[] = {"Default"};
     auto *ctrl = new wxComboBox(this, -1, initial_text, wxDefaultPosition, wxDefaultSize, 1, styles,
-                                      style | wxTE_PROCESS_ENTER);
+                                style | wxTE_PROCESS_ENTER);
     ctrl->SetToolTip(tooltip);
     top_sizer->Add(ctrl, wxSizerFlags(2).Expand().Border(wxRIGHT));
     Bind(wxEVT_COMBOBOX, handler, this, ctrl->GetId());
@@ -395,7 +399,8 @@ SubsEditBox::MakeComboBox(wxString const &initial_text, int style, void (SubsEdi
 }
 
 wxRadioButton *SubsEditBox::MakeRadio(wxString const &text, bool start, wxString const &tooltip) {
-    auto *ctrl = new wxRadioButton(this, -1, text, wxDefaultPosition, wxDefaultSize, start ? wxRB_GROUP : 0);
+    auto *ctrl = new wxRadioButton(this, -1, text, wxDefaultPosition, wxDefaultSize,
+                                   start ? wxRB_GROUP : 0);
     ctrl->SetValue(start);
     ctrl->SetToolTip(tooltip);
     Bind(wxEVT_RADIOBUTTON, &SubsEditBox::OnFrameTimeRadio, this, ctrl->GetId());
@@ -511,8 +516,22 @@ void SubsEditBox::OnSelectedSetChanged() {
 }
 
 void SubsEditBox::OnLineInitialTextChanged(std::string const &new_text) {
-    if (split_box->IsChecked())
-        secondary_editor->SetValue(to_wx(new_text));
+    if (split_box->IsChecked()) {
+        auto japanese_chinese = SplitText(new_text);
+        wxString japanese_partition = to_wx(japanese_chinese[0]);
+        wxString chinese_partition = to_wx(japanese_chinese[1]);
+#ifdef WITH_WXSTC
+        if (use_stc) {
+            primary_editor_stc->SetText(japanese_partition);
+            secondary_editor_stc->SetText(chinese_partition);
+        } else
+#endif
+        {
+            primary_editor_tc->SetValue(japanese_partition);
+            secondary_editor_tc->SetValue(chinese_partition);
+        }
+    } else {
+    }
 }
 
 void SubsEditBox::UpdateFrameTiming(agi::vfr::Framerate const &fps) {
@@ -543,7 +562,24 @@ void SubsEditBox::OnChangeStc(wxStyledTextEvent &event) {
     }
 }
 
+void SubsEditBox::OnChangeSubStc(wxStyledTextEvent &event) {
+    if (line) {
+        std::string init_text = line->Text;
+        auto japanese_chinese = SplitText(init_text);
+        wxString japanese_partition = to_wx(japanese_chinese[0]);
+        wxString chinese_partition = to_wx(japanese_chinese[1]);
+        // 如果发生改变就修改
+        if (japanese_partition != primary_editor_stc->GetTextRaw().data() ||
+            chinese_partition != secondary_editor_stc->GetTextRaw().data()) {
+            edit_ctrl_stc->SetText(secondary_editor_stc->GetValue() + "\\N" + primary_editor_stc->GetValue());
+            CommitText(_("modify text"));
+            UpdateCharacterCount(line->Text);
+        }
+    }
+}
+
 #endif
+
 
 void SubsEditBox::OnChangeTc(wxCommandEvent &event) {
     if (line && edit_ctrl_tc->GetValue().utf8_str() != line->Text.get()) {
@@ -552,9 +588,25 @@ void SubsEditBox::OnChangeTc(wxCommandEvent &event) {
     }
 }
 
-void SubsEditBox::Commit(wxString const &desc, int type, bool amend, AssDialogue *assDialogue) {
+void SubsEditBox::OnChangeSubTc(wxCommandEvent &event) {
+    if (line) {
+        std::string init_text = line->Text;
+        auto japanese_chinese = SplitText(init_text);
+        wxString japanese_partition = to_wx(japanese_chinese[0]);
+        wxString chinese_partition = to_wx(japanese_chinese[1]);
+        // If there is a change, update edit_ctrl_tc
+        if (japanese_partition != primary_editor_tc->GetValue().utf8_str() ||
+            chinese_partition != secondary_editor_tc->GetValue().utf8_str()) {
+            edit_ctrl_tc->SetValue(secondary_editor_stc->GetValue() + "\\N" + primary_editor_stc->GetValue());
+            CommitText(_("modify text"));
+            UpdateCharacterCount(line->Text);
+        }
+    }
+}
+
+void SubsEditBox::Commit(wxString const &desc, int type, bool amend, AssDialogue *line) {
     file_changed_slot.Block();
-    commit_id = c->ass->Commit(desc, type, (amend && desc == last_commit_type) ? commit_id : -1, assDialogue);
+    commit_id = c->ass->Commit(desc, type, (amend && desc == last_commit_type) ? commit_id : -1, line);
     file_changed_slot.Unblock();
     last_commit_type = desc;
     last_time_commit_type = -1;
@@ -706,22 +758,58 @@ void SubsEditBox::SetControlsState(bool state) {
 
 void SubsEditBox::OnSplit(wxCommandEvent &) {
     bool show_original = split_box->IsChecked();
+//    wxLogInfo(edit_ctrl_tc->GetValue().utf8_str());
     DoOnSplit(show_original);
     OPT_SET("Subtitle/Show Original")->SetBool(show_original);
 }
 
 void SubsEditBox::DoOnSplit(bool show_original) {
     Freeze();
-    GetSizer()->Show(secondary_editor, show_original);
+
+
+    GetSizer()->Show(sub_sizer, show_original);
+
+    if (show_original) {
+        GetSizer()->Hide(edit_ctrl_stc);
+        std::string init_text;
+        if (line != nullptr) {
+            init_text = line->Text;
+        } else {
+            init_text = c->initialLineState->GetInitialText();
+        }
+
+        UpdateSubBox(init_text);
+    }
+
+#ifdef WITH_WXSTC
+    if (use_stc) {
+        GetSizer()->Show(edit_ctrl_stc, !show_original);
+    } else
+#endif
+        GetSizer()->Show(edit_ctrl_tc, !show_original);
     GetSizer()->Show(bottom_sizer, show_original);
+
     Fit();
     SetMinSize(GetSize());
     wxSizer *parent_sizer = GetParent()->GetSizer();
     if (parent_sizer) parent_sizer->Layout();
     Thaw();
+}
 
-    if (show_original)
-        secondary_editor->SetValue(to_wx(c->initialLineState->GetInitialText()));
+void SubsEditBox::UpdateSubBox(const std::string &init_text) {
+    auto japanese_chinese = SplitText(init_text);
+    wxString japanese_partition = to_wx(japanese_chinese[0]);
+    wxString chinese_partition = to_wx(japanese_chinese[1]);
+#ifdef WITH_WXSTC
+    if (use_stc) {
+        primary_editor_stc->SetText(japanese_partition);
+        secondary_editor_stc->SetText(chinese_partition);
+    } else
+#endif
+    {
+        primary_editor_tc->SetValue(japanese_partition);
+        secondary_editor_tc->SetValue(chinese_partition);
+    }
 }
 
 void SubsEditBox::OnStyleChange(wxCommandEvent &evt) {
@@ -731,7 +819,8 @@ void SubsEditBox::OnStyleChange(wxCommandEvent &evt) {
 
 void SubsEditBox::OnActorChange(wxCommandEvent &evt) {
     bool amend = evt.GetEventType() == wxEVT_TEXT;
-    SetSelectedRows(AssDialogue_Actor, new_value(actor_box, evt), _("actor change"), AssFile::COMMIT_DIAG_META, amend);
+    SetSelectedRows(AssDialogue_Actor, new_value(actor_box, evt), _("actor change"), AssFile::COMMIT_DIAG_META,
+                    amend);
     PopulateList(actor_box, AssDialogue_Actor);
 }
 
@@ -751,10 +840,12 @@ void SubsEditBox::OnCommentChange(wxCommandEvent &evt) {
 }
 
 void SubsEditBox::CallCommand(const char *cmd_name) {
+
     cmd::call(cmd_name, c);
 #ifdef WITH_WXSTC
     if (use_stc) {
         edit_ctrl_stc->SetFocus();
+        UpdateSubBox(line->Text);
     } else {
 #endif
         edit_ctrl_tc->SetFocus();
@@ -771,9 +862,52 @@ void SubsEditBox::UpdateCharacterCount(std::string const &text) {
         ignore |= agi::IGNORE_PUNCTUATION;
     size_t length = agi::MaxLineLength(text, ignore);
     char_count->SetValue(std::to_wstring(length));
-    auto limit = (size_t) OPT_GET("Subtitle/Character Limit")->GetInt();
+    size_t limit = (size_t) OPT_GET("Subtitle/Character Limit")->GetInt();
     if (limit && length > limit)
         char_count->SetBackgroundColour(to_wx(OPT_GET("Colour/Subtitle/Syntax/Background/Error")->GetColor()));
     else
         char_count->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
+}
+
+void SubsEditBox::InitStyledSubSizer() {
+#ifdef WITH_WXSTC
+    if (use_stc) {
+        primary_editor_stc = new SubsStyledTextEditCtrl(this, wxDefaultSize, wxBORDER_SUNKEN, nullptr);
+        primary_editor_stc->Bind(wxEVT_CHAR_HOOK, &SubsEditBox::OnKeyDown, this);
+        secondary_editor_stc = new SubsStyledTextEditCtrl(this, wxDefaultSize, wxBORDER_SUNKEN, nullptr);
+        secondary_editor_stc->Bind(wxEVT_CHAR_HOOK, &SubsEditBox::OnKeyDown, this);
+        sub_sizer = new wxBoxSizer(wxVERTICAL);
+        sub_sizer->Add(new wxStaticText(this, wxID_ANY, _("Japanese")), wxSizerFlags().Border(wxLEFT, 3));
+        sub_sizer->Add(primary_editor_stc, wxSizerFlags(1).Expand().Border(wxLEFT | wxRIGHT | wxBOTTOM, 3));
+        sub_sizer->Add(new wxStaticText(this, wxID_ANY, _("Chinese")), wxSizerFlags().Border(wxLEFT, 3));
+        sub_sizer->Add(secondary_editor_stc, wxSizerFlags(1).Expand().Border(wxLEFT | wxRIGHT | wxBOTTOM, 3));
+    } else
+#endif
+    {
+        primary_editor_tc = new SubsTextEditCtrl(this, wxDefaultSize, wxBORDER_SUNKEN, nullptr);
+        primary_editor_tc->Bind(wxEVT_CHAR_HOOK, &SubsEditBox::OnKeyDown, this);
+        secondary_editor_tc = new SubsTextEditCtrl(this, wxDefaultSize, wxBORDER_SUNKEN, nullptr);
+        secondary_editor_tc->Bind(wxEVT_CHAR_HOOK, &SubsEditBox::OnKeyDown, this);
+        sub_sizer = new wxBoxSizer(wxVERTICAL);
+        sub_sizer->Add(new wxStaticText(this, wxID_ANY, _("Japanese")), wxSizerFlags().Border(wxLEFT, 3));
+        sub_sizer->Add(primary_editor_tc, wxSizerFlags(1).Expand().Border(wxLEFT | wxRIGHT | wxBOTTOM, 3));
+        sub_sizer->Add(new wxStaticText(this, wxID_ANY, _("Chinese")), wxSizerFlags().Border(wxLEFT, 3));
+        sub_sizer->Add(secondary_editor_tc, wxSizerFlags(1).Expand().Border(wxLEFT | wxRIGHT | wxBOTTOM, 3));
+    }
+}
+
+
+auto SubsEditBox::SplitText(const std::string &text) -> std::array<std::string, 2> {
+    auto idx = text.find("\\N");
+    // 由于\N长度为2需要加2
+    std::string chinese_partition;
+    std::string japanese_partition;
+    if (idx != std::string::npos) {
+        japanese_partition = text.substr(idx + 2);
+        chinese_partition = text.substr(0, idx);
+    } else {
+        japanese_partition = text;
+        chinese_partition = "";
+    }
+    return {japanese_partition, chinese_partition};
 }
