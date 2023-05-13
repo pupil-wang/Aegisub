@@ -239,7 +239,7 @@ SubsEditBox::SubsEditBox(wxWindow *parent, agi::Context *context)
         // which is more reasonable than the default given by wxWidgets.
         // See: https://trac.wxwidgets.org/ticket/18471#ticket
         //      https://github.com/wangqr/Aegisub/issues/4
-        edit_ctrl_stc->SetInitialSize(sub_sizer->GetSize());
+        edit_ctrl_stc->SetInitialSize(primary_editor_stc->GetSize());
     }
 #endif
 
@@ -784,6 +784,7 @@ void SubsEditBox::DoOnSplit(bool show_original) {
 #ifdef WITH_WXSTC
     if (use_stc) {
         GetSizer()->Show(edit_ctrl_stc, !show_original);
+        edit_ctrl_stc->SetInitialSize(primary_editor_stc->GetSize());
     } else
 #endif
         GetSizer()->Show(edit_ctrl_tc, !show_original);
