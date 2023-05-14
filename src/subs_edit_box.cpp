@@ -522,13 +522,17 @@ void SubsEditBox::OnLineInitialTextChanged(std::string const &new_text) {
         wxString chinese_partition = to_wx(japanese_chinese[1]);
 #ifdef WITH_WXSTC
         if (use_stc) {
+            primary_editor_stc->SetModEventMask(0);
+            secondary_editor_stc->SetModEventMask(0);
             primary_editor_stc->SetText(japanese_partition);
             secondary_editor_stc->SetText(chinese_partition);
+            primary_editor_stc->SetModEventMask(wxSTC_MOD_INSERTTEXT | wxSTC_MOD_DELETETEXT | wxSTC_STARTACTION);
+            secondary_editor_stc->SetModEventMask(wxSTC_MOD_INSERTTEXT | wxSTC_MOD_DELETETEXT | wxSTC_STARTACTION);
         } else
 #endif
         {
-            primary_editor_tc->SetValue(japanese_partition);
-            secondary_editor_tc->SetValue(chinese_partition);
+            primary_editor_tc->ChangeValue(japanese_partition);
+            secondary_editor_tc->ChangeValue(chinese_partition);
         }
     } else {
     }
@@ -549,6 +553,14 @@ void SubsEditBox::UpdateFrameTiming(agi::vfr::Framerate const &fps) {
 
 void SubsEditBox::OnKeyDown(wxKeyEvent &event) {
     hotkey::check("Subtitle Edit Box", c, event);
+    // Regarding ctrl + z
+    if (event.ControlDown() && event.GetKeyCode() == 'Z') {
+        primary_editor_stc->SetModEventMask(0);
+        secondary_editor_stc->SetModEventMask(0);
+        UpdateSubBox(line->Text);
+        primary_editor_stc->SetModEventMask(wxSTC_MOD_INSERTTEXT | wxSTC_MOD_DELETETEXT | wxSTC_STARTACTION);
+        secondary_editor_stc->SetModEventMask(wxSTC_MOD_INSERTTEXT | wxSTC_MOD_DELETETEXT | wxSTC_STARTACTION);
+    }
 }
 
 #ifdef WITH_WXSTC
@@ -874,9 +886,7 @@ void SubsEditBox::InitStyledSubSizer() {
 #ifdef WITH_WXSTC
     if (use_stc) {
         primary_editor_stc = new SubsStyledTextEditCtrl(this, wxDefaultSize, wxBORDER_SUNKEN, nullptr);
-        primary_editor_stc->Bind(wxEVT_CHAR_HOOK, &SubsEditBox::OnKeyDown, this);
         secondary_editor_stc = new SubsStyledTextEditCtrl(this, wxDefaultSize, wxBORDER_SUNKEN, nullptr);
-        secondary_editor_stc->Bind(wxEVT_CHAR_HOOK, &SubsEditBox::OnKeyDown, this);
         sub_sizer = new wxBoxSizer(wxVERTICAL);
         sub_sizer->Add(new wxStaticText(this, wxID_ANY, _("Japanese")), wxSizerFlags().Border(wxLEFT, 3));
         sub_sizer->Add(primary_editor_stc, wxSizerFlags(1).Expand().Border(wxLEFT | wxRIGHT | wxBOTTOM, 3));
