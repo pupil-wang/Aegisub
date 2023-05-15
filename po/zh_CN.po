@@ -6156,11 +6156,11 @@ msgstr "注释更改"
 
 #: ../src/subs_edit_box.cpp:880 ../src/subs_edit_box.cpp:892
 msgid "Japanese"
-msgstr ""
+msgstr "日文"
 
 #: ../src/subs_edit_box.cpp:882 ../src/subs_edit_box.cpp:894
 msgid "Chinese"
-msgstr ""
+msgstr "中文"
 
 #: ../src/subs_edit_ctrl.cpp:151 ../src/subs_edit_ctrl_stc.cpp:406
 msgid "Cu&t"
