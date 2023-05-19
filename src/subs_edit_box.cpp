@@ -259,10 +259,10 @@ SubsEditBox::SubsEditBox(wxWindow *parent, agi::Context *context)
     bottom_sizer->Add(MakeBottomButton("edit/revert"), wxSizerFlags().Border(wxRIGHT));
     bottom_sizer->Add(MakeBottomButton("edit/clear"), wxSizerFlags().Border(wxRIGHT));
     bottom_sizer->Add(MakeBottomButton("edit/clear/text"), wxSizerFlags().Border(wxRIGHT));
-    auto insert_original_btm = MakeBottomButton("edit/insert_original");
-    bottom_sizer->Add(insert_original_btm);
+    // auto insert_original_btm = MakeBottomButton("edit/insert_original");
+    // bottom_sizer->Add(insert_original_btm);
     // temporarily hide to reserve for future use.
-    bottom_sizer->Hide(insert_original_btm);
+    // bottom_sizer->Hide(insert_original_btm);
     main_sizer->Add(bottom_sizer);
     main_sizer->Hide(bottom_sizer);
 
@@ -518,23 +518,7 @@ void SubsEditBox::OnSelectedSetChanged() {
 void SubsEditBox::OnLineInitialTextChanged(std::string const &new_text) {
     if (split_box->IsChecked()) {
         auto japanese_chinese = SplitText(new_text);
-        wxString japanese_partition = to_wx(japanese_chinese[0]);
-        wxString chinese_partition = to_wx(japanese_chinese[1]);
-#ifdef WITH_WXSTC
-        if (use_stc) {
-            primary_editor_stc->SetModEventMask(0);
-            secondary_editor_stc->SetModEventMask(0);
-            primary_editor_stc->SetText(japanese_partition);
-            secondary_editor_stc->SetText(chinese_partition);
-            primary_editor_stc->SetModEventMask(wxSTC_MOD_INSERTTEXT | wxSTC_MOD_DELETETEXT | wxSTC_STARTACTION);
-            secondary_editor_stc->SetModEventMask(wxSTC_MOD_INSERTTEXT | wxSTC_MOD_DELETETEXT | wxSTC_STARTACTION);
-        } else
-#endif
-        {
-            primary_editor_tc->ChangeValue(japanese_partition);
-            secondary_editor_tc->ChangeValue(chinese_partition);
-        }
-    } else {
+        UpdateSubBox(new_text);
     }
 }
 
@@ -789,7 +773,6 @@ void SubsEditBox::DoOnSplit(bool show_original) {
         } else {
             init_text = c->initialLineState->GetInitialText();
         }
-
         UpdateSubBox(init_text);
     }
 
@@ -815,8 +798,12 @@ void SubsEditBox::UpdateSubBox(const std::string &init_text) {
     wxString chinese_partition = to_wx(japanese_chinese[1]);
 #ifdef WITH_WXSTC
     if (use_stc) {
+        primary_editor_stc->SetModEventMask(0);
+        secondary_editor_stc->SetModEventMask(0);
         primary_editor_stc->SetText(japanese_partition);
         secondary_editor_stc->SetText(chinese_partition);
+        primary_editor_stc->SetModEventMask(wxSTC_MOD_INSERTTEXT | wxSTC_MOD_DELETETEXT | wxSTC_STARTACTION);
+        secondary_editor_stc->SetModEventMask(wxSTC_MOD_INSERTTEXT | wxSTC_MOD_DELETETEXT | wxSTC_STARTACTION);
     } else
 #endif
     {
