@@ -254,9 +254,9 @@ class SubsEditBox final : public wxPanel {
     const bool use_stc;
     SubsStyledTextEditCtrl *edit_ctrl_stc;
     // Store and edit Japanese content.
-    SubsStyledTextEditCtrl *primary_editor_stc;
+    SubsStyledTextEditCtrl *primary_editor_stc{nullptr};
     // Store and edit Chinese content.
-    SubsStyledTextEditCtrl *secondary_editor_stc;
+    SubsStyledTextEditCtrl *secondary_editor_stc{nullptr};
 #endif
     wxTextCtrl *edit_ctrl_tc;
     wxTextCtrl *primary_editor_tc{nullptr};
