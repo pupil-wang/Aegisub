@@ -233,6 +233,8 @@ SubsEditBox::SubsEditBox(wxWindow *parent, agi::Context *context)
         edit_ctrl_tc->Bind(wxEVT_CHAR_HOOK, &SubsEditBox::OnKeyDown, this);
     }
     InitStyledSubSizer();
+    main_sizer->Add(sub_sizer, wxSizerFlags(1).Expand().Border(wxLEFT | wxRIGHT | wxBOTTOM, 3));
+    main_sizer->Hide(sub_sizer);
 #ifdef WITH_WXSTC
     if (use_stc) {
         // Here we use the height of secondary_editor as the initial size of edit_ctrl_stc,
@@ -243,8 +245,7 @@ SubsEditBox::SubsEditBox(wxWindow *parent, agi::Context *context)
     }
 #endif
 
-    main_sizer->Add(sub_sizer, wxSizerFlags(1).Expand().Border(wxLEFT | wxRIGHT | wxBOTTOM, 3));
-    main_sizer->Hide(sub_sizer);
+
 #ifdef WITH_WXSTC
     if (use_stc) {
         main_sizer->Add(edit_ctrl_stc, wxSizerFlags(1).Expand().Border(wxLEFT | wxRIGHT | wxBOTTOM, 3));
@@ -567,7 +568,12 @@ void SubsEditBox::OnChangeSubStc(wxStyledTextEvent &event) {
         // 如果发生改变就修改
         if (japanese_partition != primary_editor_stc->GetTextRaw().data() ||
             chinese_partition != secondary_editor_stc->GetTextRaw().data()) {
-            edit_ctrl_stc->SetText(secondary_editor_stc->GetValue() + "\\N" + primary_editor_stc->GetValue());
+            if (edit_ctrl_stc->GetText().find("\\N") != wxString::npos) {
+                edit_ctrl_stc->SetText(secondary_editor_stc->GetValue() + "\\N" + primary_editor_stc->GetValue());
+            } else {
+                edit_ctrl_stc->SetText(secondary_editor_stc->GetValue() + primary_editor_stc->GetValue());
+            }
+
             CommitText(_("modify text"));
             UpdateCharacterCount(line->Text);
         }
@@ -779,14 +785,19 @@ void SubsEditBox::DoOnSplit(bool show_original) {
 #ifdef WITH_WXSTC
     if (use_stc) {
         GetSizer()->Show(edit_ctrl_stc, !show_original);
-        edit_ctrl_stc->SetInitialSize(primary_editor_stc->GetSize());
     } else
 #endif
+    {
         GetSizer()->Show(edit_ctrl_tc, !show_original);
+    }
     GetSizer()->Show(bottom_sizer, show_original);
 
     Fit();
-    SetMinSize(GetSize());
+    if (!show_original) {
+        SetMinSize(GetMinSize() / 2);
+    } else {
+        SetMinSize(GetSize());
+    }
     wxSizer *parent_sizer = GetParent()->GetSizer();
     if (parent_sizer) parent_sizer->Layout();
     Thaw();
@@ -874,6 +885,8 @@ void SubsEditBox::InitStyledSubSizer() {
     if (use_stc) {
         primary_editor_stc = new SubsStyledTextEditCtrl(this, wxDefaultSize, wxBORDER_SUNKEN, nullptr);
         secondary_editor_stc = new SubsStyledTextEditCtrl(this, wxDefaultSize, wxBORDER_SUNKEN, nullptr);
+        primary_editor_stc->SetInitialSize(primary_editor_stc->GetSize() / 2);
+        secondary_editor_stc->SetInitialSize(secondary_editor_stc->GetSize() / 2);
         sub_sizer = new wxBoxSizer(wxVERTICAL);
         sub_sizer->Add(new wxStaticText(this, wxID_ANY, _("Japanese")), wxSizerFlags().Border(wxLEFT, 3));
         sub_sizer->Add(primary_editor_stc, wxSizerFlags(1).Expand().Border(wxLEFT | wxRIGHT | wxBOTTOM, 3));
@@ -886,6 +899,8 @@ void SubsEditBox::InitStyledSubSizer() {
         primary_editor_tc->Bind(wxEVT_CHAR_HOOK, &SubsEditBox::OnKeyDown, this);
         secondary_editor_tc = new SubsTextEditCtrl(this, wxDefaultSize, wxBORDER_SUNKEN, nullptr);
         secondary_editor_tc->Bind(wxEVT_CHAR_HOOK, &SubsEditBox::OnKeyDown, this);
+        primary_editor_tc->SetInitialSize(primary_editor_stc->GetSize() / 2);
+        secondary_editor_tc->SetInitialSize(secondary_editor_stc->GetSize() / 2);
         sub_sizer = new wxBoxSizer(wxVERTICAL);
         sub_sizer->Add(new wxStaticText(this, wxID_ANY, _("Japanese")), wxSizerFlags().Border(wxLEFT, 3));
         sub_sizer->Add(primary_editor_tc, wxSizerFlags(1).Expand().Border(wxLEFT | wxRIGHT | wxBOTTOM, 3));
