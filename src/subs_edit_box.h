@@ -250,6 +250,10 @@ class SubsEditBox final : public wxPanel {
 
     void UpdateSubBox(const std::string &init_text);
 
+    /*用于sub box 被选中行的信息更新*/
+    auto UpdateSelectedLineInfo(int insert, int start, int end) -> void;
+
+
 #ifdef WITH_WXSTC
     const bool use_stc;
     SubsStyledTextEditCtrl *edit_ctrl_stc;
@@ -268,4 +272,5 @@ public:
     SubsEditBox(wxWindow *parent, agi::Context *context);
 
     ~SubsEditBox() override;
+
 };

@@ -322,6 +322,7 @@ SubsEditBox::SubsEditBox(wxWindow *parent, agi::Context *context)
     bool show_original = OPT_GET("Subtitle/Show Original")->GetBool();
     if (show_original) {
         split_box->SetValue(true);
+        c->textSelectionController->SetControl((wxTextCtrl *) nullptr);
         DoOnSplit(true);
     }
 }
@@ -518,7 +519,6 @@ void SubsEditBox::OnSelectedSetChanged() {
 
 void SubsEditBox::OnLineInitialTextChanged(std::string const &new_text) {
     if (split_box->IsChecked()) {
-        auto japanese_chinese = SplitText(new_text);
         UpdateSubBox(new_text);
     }
 }
@@ -762,6 +762,24 @@ void SubsEditBox::OnSplit(wxCommandEvent &) {
     bool show_original = split_box->IsChecked();
 //    wxLogInfo(edit_ctrl_tc->GetValue().utf8_str());
     DoOnSplit(show_original);
+    if (show_original) {
+        c->textSelectionController->SetControl((wxTextCtrl *) nullptr);
+        c->textSelectionController->SetInsertionPoint(0);
+        c->textSelectionController->SetSelection(0, 0);
+
+    } else {
+#ifdef WITH_WXSTC
+        if (use_stc) {
+            c->textSelectionController->SetControl(edit_ctrl_stc);
+            edit_ctrl_stc->SetFocus();
+        } else
+#endif
+        {
+            c->textSelectionController->SetControl(edit_ctrl_tc);
+            edit_ctrl_tc->SetFocus();
+
+        }
+    }
     OPT_SET("Subtitle/Show Original")->SetBool(show_original);
 }
 
@@ -887,6 +905,22 @@ void SubsEditBox::InitStyledSubSizer() {
         secondary_editor_stc = new SubsStyledTextEditCtrl(this, wxDefaultSize, wxBORDER_SUNKEN, nullptr);
         primary_editor_stc->SetInitialSize(primary_editor_stc->GetSize() / 2);
         secondary_editor_stc->SetInitialSize(secondary_editor_stc->GetSize() / 2);
+        primary_editor_stc->Bind(wxEVT_STC_UPDATEUI, [this](wxStyledTextEvent &event) {
+            long tmp_insertion, tmp_start, tmp_end;
+            int offset = secondary_editor_stc->GetLastPosition();
+            if (line->Text.get().find("\\N") != std::string::npos) {
+                offset += 2;
+            }
+            tmp_insertion = primary_editor_stc->GetInsertionPoint();
+            primary_editor_stc->GetSelection(&tmp_start, &tmp_end);
+            UpdateSelectedLineInfo(tmp_insertion + offset, tmp_start + offset, tmp_end + offset);
+        });
+        secondary_editor_stc->Bind(wxEVT_STC_UPDATEUI, [this](wxStyledTextEvent &event) {
+            long tmp_insertion, tmp_start, tmp_end;
+            tmp_insertion = secondary_editor_stc->GetInsertionPoint();
+            secondary_editor_stc->GetSelection(&tmp_start, &tmp_end);
+            UpdateSelectedLineInfo(tmp_insertion, tmp_start, tmp_end);
+        });
         sub_sizer = new wxBoxSizer(wxVERTICAL);
         sub_sizer->Add(new wxStaticText(this, wxID_ANY, _("Japanese")), wxSizerFlags().Border(wxLEFT, 3));
         sub_sizer->Add(primary_editor_stc, wxSizerFlags(1).Expand().Border(wxLEFT | wxRIGHT | wxBOTTOM, 3));
@@ -923,4 +957,13 @@ auto SubsEditBox::SplitText(const std::string &text) -> std::array<std::string, 
         chinese_partition = "";
     }
     return {japanese_partition, chinese_partition};
+}
+
+auto SubsEditBox::UpdateSelectedLineInfo(int insert, int start, int end) -> void {
+    if (insert != c->textSelectionController->GetSelectionStart() ||
+        start != c->textSelectionController->GetSelectionStart() ||
+        end != c->textSelectionController->GetSelectionEnd()) {
+        c->textSelectionController->SetInsertionPoint(insert);
+        c->textSelectionController->SetSelection(start, end);
+    }
 }
