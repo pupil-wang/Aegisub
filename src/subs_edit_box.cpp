@@ -539,7 +539,7 @@ void SubsEditBox::UpdateFrameTiming(agi::vfr::Framerate const &fps) {
 void SubsEditBox::OnKeyDown(wxKeyEvent &event) {
     hotkey::check("Subtitle Edit Box", c, event);
     // Regarding ctrl + z
-    if (event.ControlDown() && event.GetKeyCode() == 'Z') {
+    if (event.ControlDown() && (event.GetKeyCode() == 'Z' || event.GetKeyCode() == 'Y')) {
         primary_editor_stc->SetModEventMask(0);
         secondary_editor_stc->SetModEventMask(0);
         UpdateSubBox(line->Text);
