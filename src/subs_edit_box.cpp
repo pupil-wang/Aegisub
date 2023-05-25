@@ -571,7 +571,8 @@ void SubsEditBox::OnChangeSubStc(wxStyledTextEvent &event) {
             if (edit_ctrl_stc->GetText().find("\\N") != wxString::npos) {
                 edit_ctrl_stc->SetText(secondary_editor_stc->GetValue() + "\\N" + primary_editor_stc->GetValue());
             } else {
-                edit_ctrl_stc->SetText(secondary_editor_stc->GetValue() + primary_editor_stc->GetValue());
+                edit_ctrl_stc->SetText(chinese_partition + "\\N" + japanese_partition);
+                edit_ctrl_stc->SetText(secondary_editor_stc->GetValue() + "\\N" + primary_editor_stc->GetValue());
             }
 
             CommitText(_("modify text"));
@@ -891,7 +892,7 @@ void SubsEditBox::UpdateCharacterCount(std::string const &text) {
         ignore |= agi::IGNORE_PUNCTUATION;
     size_t length = agi::MaxLineLength(text, ignore);
     char_count->SetValue(std::to_wstring(length));
-    size_t limit = (size_t) OPT_GET("Subtitle/Character Limit")->GetInt();
+    auto limit = (size_t) OPT_GET("Subtitle/Character Limit")->GetInt();
     if (limit && length > limit)
         char_count->SetBackgroundColour(to_wx(OPT_GET("Colour/Subtitle/Syntax/Background/Error")->GetColor()));
     else
